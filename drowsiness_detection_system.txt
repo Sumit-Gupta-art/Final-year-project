@@ -1,0 +1,88 @@
+
+#include <Servo.h>
+
+// Pin Definitions
+const int irSensorPin = 2;   // IR Eye Blink Sensor
+const int switchPin = 3;     // Circuit ON/OFF Switch
+const int buzzerPin = 5;     // Buzzer
+const int ledPin = 6;        // LED
+const int servoPin = 9;      // Servo Motor
+
+Servo driverServo;
+
+bool systemOn = false;          // To check if system is ON
+unsigned long eyeClosedStart = 0;
+bool eyeClosed = false;
+bool alarmActivated = false;
+bool servoActivated = false;
+
+void setup() {
+  pinMode(irSensorPin, INPUT);
+  pinMode(switchPin, INPUT);
+  pinMode(buzzerPin, OUTPUT);
+  pinMode(ledPin, OUTPUT);
+  driverServo.attach(servoPin);
+  driverServo.write(0);  // Initial position
+
+  Serial.begin(9600);
+  Serial.println("Drowsiness Detection System Initialized");
+}
+
+void loop() {
+  // Read the switch state
+  systemOn = digitalRead(switchPin);
+
+  if (!systemOn) {
+    // If switch is OFF, turn everything off
+    digitalWrite(buzzerPin, LOW);
+    digitalWrite(ledPin, LOW);
+    driverServo.write(0);
+    eyeClosed = false;
+    alarmActivated = false;
+    servoActivated = false;
+    return;
+  }
+
+  int eyeState = digitalRead(irSensorPin); // 0 = Eye Closed, 1 = Eye Open
+  Serial.print("Eye State: ");
+  Serial.println(eyeState);
+
+  if (eyeState == LOW) { // Eye is closed
+    if (!eyeClosed) {
+      eyeClosed = true;
+      eyeClosedStart = millis(); // Start timer when eyes first close
+    } else {
+      unsigned long duration = millis() - eyeClosedStart;
+
+      if (duration >= 2000 && !alarmActivated) { // 2 seconds
+        digitalWrite(buzzerPin, HIGH); // Buzzer ON
+        alarmActivated = true;
+      }
+
+      if (duration >= 5000 && !servoActivated) { // 5 seconds
+        // Move servo motor once
+        driverServo.write(90);
+        delay(1000);
+        driverServo.write(0);
+        servoActivated = true;
+
+        // Start LED blinking
+        for (int i = 0; i < 5; i++) { // Blink 5 times
+          digitalWrite(ledPin, HIGH);
+          delay(500);
+          digitalWrite(ledPin, LOW);
+          delay(500);
+        }
+      }
+    }
+  } else { // Eye is open
+    // Reset everything
+    eyeClosed = false;
+    alarmActivated = false;
+    servoActivated = false;
+    digitalWrite(buzzerPin, LOW);
+    digitalWrite(ledPin, LOW);
+  }
+
+  delay(100);
+}
